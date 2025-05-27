@@ -13,4 +13,4 @@ Dockerfile
 Makefile
 README.md
 test-*
-config.yaml
+app/config.yaml

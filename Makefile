@@ -21,7 +21,7 @@ run: ## Run docker image locally.
 	@docker run \
 		--platform linux/amd64 \
 		--rm \
-		--name ${NAME} \
+		--name ${NAME}-${DOCKER_TAG} \
 		--hostname ${NAME}-${DOCKER_TAG} \
 		${DOCKER_REPO}:${DOCKER_TAG}
 
@@ -29,7 +29,7 @@ shell: ## Run docker image in a shell locally.
 	@docker run \
 		--platform linux/amd64 \
 		--rm \
-		--name ${NAME} \
+		--name ${NAME}-${DOCKER_TAG} \
 		--hostname ${NAME}-${DOCKER_TAG} \
 		--interactive \
 		--tty \
