@@ -21,7 +21,7 @@ COPY    app/ .
 
 # Go Dependencies
 RUN     go clean -modcache
-# RUN     go mod tidy -compat=1.24
+RUN     go mod tidy -compat=1.24
 
 # Build the Go app
 RUN     go build -o corridor .
@@ -39,8 +39,9 @@ COPY    --from=builder /corridor/corridor /corridor/corridor
 
 # Set the Current Working Directory inside the container
 WORKDIR /corridor
+RUN     rm -f config.yaml
 
-EXPOSE  80 443
+EXPOSE  8080
 
 # Execute the application when the container starts
 CMD     ["/corridor/corridor"]

@@ -346,28 +346,28 @@ version: '3.8'
 
 services:
   corridor:
-    image: cloudresty/corridor:latest
+    image: cloudresty/corridor:latest # Make sure you use a specific version in production and not just 'latest' which can change over time the behavior of your service.
     container_name: corridor-gateway
     ports:
-      - "8080:8080" # HostPort:ContainerPort (adjust if your config uses a different port)
+      - "80:8080" # HostPort:ContainerPort (adjust if your config uses a different port)
     volumes:
-      - ./corridor-config:/corridor/config # Mounts ./corridor-config on host to /corridor/config in container
-    command: ["-config", "/corridor/config/config.yaml"] # Tells Corridor where to find the config
+      - ./config/corridor/config.yaml:/corridor/config/config.yaml # Mounts ./config/corridor/config.yaml on host to /corridor/config/config.yaml in container
+    command: ["/corridor/corridor", "-config", "/corridor/config/config.yaml"] # Tells Corridor where to find the config
     restart: unless-stopped
 ```
 
-Place your `config.yaml` inside a `./corridor-config/` directory relative to your `docker-compose.yaml`.
+Place your `config.yaml` inside a `./config/corridor/` directory relative to your `docker-compose.yaml`.
 
 Then run:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 To stop:
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 &nbsp;
