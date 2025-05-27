@@ -1,0 +1,220 @@
+# Corridor API Gateway - Sample Configuration File
+#
+# This file provides an example of all configurable options for Corridor.
+# Uncomment and modify sections as needed for your specific setup.
+
+# 1. Global Settings:
+#    General configuration parameters that apply to the entire gateway.
+global:
+  # Port on which the API Gateway will listen for incoming HTTP requests.
+  port: 8080
+
+  # Logging level for the gateway.
+  # Options: "debug", "info", "warn", "error", "fatal"
+  log_level: "info"
+
+  # Set to true to enable HTTPS. Requires TLS configuration (see section 5).
+  enable_https: false
+
+  # Default timeout in milliseconds for various operations, such as proxying requests
+  # if not overridden by more specific timeouts.
+  default_timeout_ms: 10000
+
+  # Headers that the proxy should manage or add to requests forwarded to upstream services.
+  # Common headers include X-Request-ID, X-Forwarded-For, X-Forwarded-Proto, X-Forwarded-Host.
+  # Corridor's proxy will handle these standard forwarding headers appropriately.
+  # You can list custom headers here if the proxy needs to add/manage them.
+  proxy_headers:
+    - "X-Request-ID"      # If a request-id plugin is not used, the proxy can manage this.
+    - "X-Forwarded-For"   # Standard: identifies the originating IP address of the client.
+    - "X-Forwarded-Proto" # Standard: identifies the protocol (HTTP or HTTPS) that the client used.
+    - "X-Forwarded-Host"  # Standard: identifies the original host requested by the client.
+
+  # Server-specific timeouts (in seconds) for the HTTP server listening for client requests.
+  # These help prevent resource exhaustion and improve server stability.
+  # read_timeout_sec: 30       # Max duration for reading the entire request, including the body.
+  # write_timeout_sec: 30      # Max duration before timing out writes of the response.
+  # idle_timeout_sec: 60       # Max amount of time to wait for the next request when keep-alives are enabled.
+  # read_header_timeout_sec: 15 # Amount of time allowed to read request headers.
+
+  # If true, the gateway will fail to start if any service's load balancer cannot be initialized.
+  # If false (default), the gateway will start but the problematic service(s) will be unavailable.
+  # fail_on_service_init_error: false
+
+  # HTTP Client Transport settings for Corridor's connections to upstream services.
+  # These control the behavior of the client making requests to your backends.
+  # transport_dial_timeout_sec: 5          # Timeout for establishing a connection to the upstream (seconds).
+  # transport_keep_alive_sec: 30           # Duration for keep-alive connections to upstream (seconds).
+  # transport_max_idle_conns: 100          # Maximum number of idle connections across all upstreams.
+  # transport_max_idle_conns_per_host: 10  # Maximum number of idle connections to a single upstream host.
+  # transport_idle_conn_timeout_sec: 90    # Timeout for an idle connection to an upstream (seconds).
+  # transport_tls_handshake_timeout_sec: 10 # Timeout for the TLS handshake with an upstream (seconds).
+  # transport_expect_continue_timeout_sec: 1 # Timeout for waiting for a 100-continue response from upstream (seconds).
+  # transport_response_header_timeout_sec: 0 # Timeout for receiving response headers from upstream (seconds).
+  #                                        # If 0 or not set, uses `global.default_timeout_ms`.
+
+# 2. Services:
+#    Definitions of your backend services that Corridor will route requests to.
+services:
+  - name: "my-backend-service-1" # Unique name for the service.
+    # List of upstream URLs for this service. Corridor will load balance requests among these.
+    upstream_urls:
+      - "http://localhost:8081"
+      # - "http://service1-instance2:8081"
+
+    # Load balancing configuration for this service.
+    load_balancing:
+      # Strategy for selecting an upstream target.
+      # Options: "round-robin", "random", "least-connections" (weighted is not yet implemented).
+      strategy: "round-robin"
+
+      # Health check configuration for the upstream targets of this service.
+      health_checks:
+        # Path for the readiness probe (e.g., "/health/ready").
+        # If defined, this is prioritized. Target is ready to accept traffic.
+        ready: "/health/ready"
+        # Path for the liveness probe (e.g., "/health/live").
+        # Used if 'ready' is not defined. Target application is running.
+        live: "/health/live"
+        # Interval in seconds between health checks.
+        interval: 15
+        # Timeout in seconds for each health check request.
+        timeout: 5
+        # Number of consecutive failed checks to mark a target as unhealthy.
+        unhealthy_threshold: 3
+        # Number of consecutive successful checks to mark an unhealthy target as healthy.
+        healthy_threshold: 2
+
+  # - name: "another-service"
+  #   upstream_urls:
+  #     - "http://localhost:8082"
+  #   load_balancing:
+  #     strategy: "least-connections"
+  #     health_checks:
+  #       ready: "/status"
+  #       interval: 10
+  #       timeout: 3
+  #       unhealthy_threshold: 2
+  #       healthy_threshold: 1
+
+# 3. Routes:
+#    Rules that define how incoming requests are matched and routed to services.
+routes:
+  - id: "route-for-service-1" # Unique identifier for the route.
+    # List of URL path patterns to match.
+    # - Exact match: "/path/to/resource"
+    # - Prefix match with wildcard: "/api/v1/*" (matches "/api/v1/" and anything under it)
+    paths:
+      - "/service1/data/*"
+      - "/service1/info"
+
+    # List of HTTP methods to match (e.g., GET, POST, PUT, DELETE).
+    # If empty or not specified, all methods are allowed.
+    methods: ["GET", "POST"]
+
+    # Host header to match.
+    # - Exact match: "api.example.com"
+    # - Wildcard prefix: "*.example.com" (matches "foo.example.com" but not "example.com")
+    # If empty or not specified, matches any host.
+    # host: "api.mydomain.com"
+
+    # Name of the service (defined in section 2) to route matched requests to.
+    service: "my-backend-service-1"
+
+    # List of plugins to apply to this route, in the order they are defined.
+    plugins:
+      - name: "path-rewrite" # Name of the plugin (must be registered).
+        config: # Plugin-specific configuration.
+          regex: "^/service1/data(/.*)$"
+          replacement: "/api/v1$1"
+      # - name: "rate-limiting"
+      #   config:
+      #     requests_per_minute: 100
+      #     # strategy: "ip-address" # or "header" with header_name
+      #     # header_name: "X-Client-ID" # if strategy is "header"
+      # - name: "caching"
+      #   config:
+      #     ttl_seconds: 60 # Time-to-live for cached responses.
+      # - name: "request-id" # Ensures each request has a unique ID.
+      #   config:
+      #     header_name: "X-Request-ID" # Default is "X-Request-ID"
+      # - name: "authentication"
+      #   config: # Route-specific authentication config can override global.
+      #     provider: "jwt"
+      #     # Other JWT or API Key settings specific to this route.
+
+# 4. Plugins:
+#    Centralized definitions for plugins that can be applied globally or per-route.
+#    Route-specific plugin configurations can override these global settings.
+plugins:
+  authentication:
+    # Default authentication provider for all routes unless overridden.
+    # Options: "jwt", "api-key", "none".
+    provider: "none"
+
+    # --- JWT Provider Settings ---
+    # jwt_secret: "your-very-secure-hmac-secret-key-for-hs256-hs384-hs512" # For HMAC-based algorithms.
+    # jwt_public_key_file: "/path/to/your/public_key.pem" # For RSA/ECDSA algorithms (RS256, ES256, etc.).
+    # jwt_algorithm: "HS256" # Expected signing algorithm (e.g., HS256, RS256, ES256, ES384, ES512).
+    # jwt_issuer: "your-auth-service-issuer-claim" # Optional: Expected 'iss' (issuer) claim.
+    # jwt_audience: "your-api-resource-audience-claim" # Optional: Expected 'aud' (audience) claim.
+    # token_header_name: "Authorization" # Optional: HTTP header to find the token (default: "Authorization").
+    # token_header_scheme: "Bearer"      # Optional: Scheme prefixing the token (default: "Bearer", case-insensitive).
+
+    # --- API Key Provider Settings ---
+    # api_key_header_name: "X-API-Key" # Optional: HTTP header for the API key (default: "X-API-Key").
+
+    # --- MongoDB Settings for API Key Provider (Recommended for production) ---
+    # If these are configured and the provider is "api-key", Corridor will use MongoDB to store/validate API keys.
+    # mongodb_uri: "mongodb://localhost:27017" # Connection URI for MongoDB.
+    # mongodb_database: "corridor_gateway_db"    # Name of the MongoDB database.
+    # mongodb_collection_apikeys: "api_keys"   # Name of the collection storing API key details.
+    # mongodb_timeout_ms: 5000                 # Timeout for MongoDB operations (milliseconds).
+    # mongodb_apikeys_refresh_interval_sec: 300 # How often to refresh API keys from DB (seconds). 0 to disable refresh.
+
+    # --- YAML-based API Keys (Fallback if MongoDB is not configured, or for simpler setups) ---
+    # For production, using MongoDB with hashed keys is strongly recommended.
+    # These keys are loaded into memory at startup.
+    # api_keys:
+    #   - client_id: "client_app_one" # Optional identifier for the client.
+    #     # lookup_key is hex(sha256(original_plaintext_key_given_to_client))
+    #     lookup_key: "ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f" # Example for "mysecretkey1"
+    #     # hashed_value is the bcrypt hash of the original_plaintext_key_given_to_client
+    #     hashed_value: "$2a$10$somebcryptgeneratedhashstringexample..." # Replace with actual bcrypt hash
+    #   - client_id: "service_two"
+    #     lookup_key: "another_sha256_lookup_key_hex_example"
+    #     hashed_value: "$2a$10$anotherbcryptgeneratedhashstringexample..."
+
+  rate-limiting:
+    # Default rate-limiting strategy.
+    # Options: "ip-address", "header"
+    strategy: "ip-address"
+    # header_name: "X-Client-ID" # Required if strategy is "header".
+    # requests_per_minute: 1000 # Default global limit if not set per-route.
+
+  caching:
+    # Globally enable or disable the caching plugin functionality.
+    # Can still be enabled/disabled per route.
+    enabled: true
+    # Default Time-To-Live in seconds for cached responses, if not set per-route.
+    default_ttl_seconds: 300
+
+  logging:
+    # Format for request/response logging.
+    # Options: "text", "json"
+    format: "json"
+
+  # request-id:
+    # header_name: "X-Request-ID" # Default header name for request ID.
+
+# 5. TLS Configuration (Optional):
+#    Settings for enabling HTTPS on the gateway.
+#    Required if `global.enable_https` is true.
+# tls:
+#   certificates:
+#     - hostname: "api.example.com" # Hostname for which this certificate is valid (SNI).
+#       cert_file: "/etc/corridor/certs/api.example.com.crt" # Path to the SSL certificate file (PEM format).
+#       key_file: "/etc/corridor/certs/api.example.com.key"  # Path to the SSL private key file (PEM format).
+#     # - hostname: "*.anotherdomain.com"
+#     #   cert_file: "/etc/corridor/certs/anotherdomain.com.crt"
+#     #   key_file: "/etc/corridor/certs/anotherdomain.com.key"
